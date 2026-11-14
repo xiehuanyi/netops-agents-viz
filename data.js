@@ -42,9 +42,29 @@ window.NETOPS = {
       tag: "Final project",
       title: "Course results",
       score: "next",
-      note: "Homework thread is measured. Remaining question: when does splitting the work actually help.",
+      note: "Larger NetOpsBench scales (Large / Xlarge / Fat-tree K=8, 12, 18) and a model swap with the harness held fixed.",
     },
   ],
+
+  plan: {
+    source: "NetOpsBench v0.2.0 README scale table",
+    official: "https://github.com/NetX-lab/NetOpsBench",
+    scales: [
+      { name: "XS", topo: "CLOS", sw: 4, cli: 2, cases: 14, scored: 13, status: "done", note: "A1 9 · A2 13 · A3 6 paired" },
+      { name: "Small", topo: "CLOS", sw: 6, cli: 8, cases: 15, scored: 14, status: "done", note: "A2 harness 1.000" },
+      { name: "Medium", topo: "CLOS", sw: 12, cli: 16, cases: 28, scored: 26, status: "done", note: "A2 harness 0.962" },
+      { name: "Large", topo: "CLOS", sw: 20, cli: 64, cases: 52, scored: null, status: "next", note: "local runner ready · 1 worker · ~84 nodes" },
+      { name: "Xlarge", topo: "CLOS", sw: 144, cli: 256, cases: 70, scored: null, status: "next", note: "live README · 144 switches, 256 clients" },
+      { name: "Fat-tree K=8", topo: "Fat-tree", sw: 80, cli: 128, cases: 70, scored: null, status: "next", note: "new topology family" },
+      { name: "Fat-tree K=12", topo: "Fat-tree", sw: 180, cli: 144, cases: 70, scored: null, status: "next", note: "DeepSeek snapshot covers this" },
+      { name: "Fat-tree K=18", topo: "Fat-tree", sw: 405, cli: 324, cases: 70, scored: null, status: "next", note: "live README · beyond the v0.2 snapshot" },
+    ],
+    models: [
+      { name: "Muse Spark 1.3 Contributor", role: "frozen", note: "A1–A3. Same SKU on the harness, OpenCode, and every desk." },
+      { name: "DeepSeek v4-pro", role: "official snapshot", note: "v0.2.0 published scores on seven scales (XS through Fat-tree K=12)." },
+      { name: "Model swap", role: "next", note: "Hold the NetOps harness fixed. Swap the SKU (course 04/10: model-swap and ablation)." },
+    ],
+  },
 
   a2: {
     n: 53,

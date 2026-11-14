@@ -21,6 +21,7 @@
     <nav aria-label="Sections">
       <a href="#progress" data-panel="progress" class="active">Progress</a>
       <a href="#replay" data-panel="replay">Replay</a>
+      <a href="#cloud" data-panel="cloud">Cloud</a>
       <a href="#scores" data-panel="scores">Scores</a>
     </nav>
   </header>
@@ -51,13 +52,23 @@
       </div>
 
       <div class="timeline" id="timeline"></div>
-      <p class="note"><strong>Replay tab:</strong> all 13 scored XS cases on the live Clos. Pick a fault, pick A2 harness or an A3 desk run, press Play. Each <code>netops</code> call lights the device or walks a ping along the links. Keys <kbd>1</kbd>–<kbd>3</kbd> jump tabs. <kbd>Space</kbd> plays.</p>
+      <p class="note"><strong>Replay</strong> plays every frozen <code>netops</code> call with a different motion per tool and a result chip (echo, drop, Idle, MTU, diagnosis stamp). <strong>Cloud</strong> is the word cloud of tools called and faults the agent named. Keys <kbd>1</kbd>–<kbd>4</kbd> jump tabs. <kbd>Space</kbd> plays.</p>
+
+      <div class="plan-block">
+        <p class="kicker" style="margin-top:28px">Next · final 6–9 Dec</p>
+        <h2>Larger fabrics, then a model swap</h2>
+        <p class="lede">A2 measured XS + Small + Medium (53 scored). The live NetOpsBench table still has Large, Xlarge, and Fat-tree K=8 / K=12 / K=18 we have not run. The model stays Muse Spark 1.3 Contributor until the question needs a swap.</p>
+        <div class="card" style="overflow:auto">
+          <table id="plan-table"></table>
+        </div>
+        <div class="models" id="plan-models"></div>
+      </div>
     </section>
 
     <section id="replay" class="panel">
       <p class="kicker">Live evaluation fabric · 13 scored XS traces</p>
       <h2>The Clos is the stage. Tools are the motion.</h2>
-      <p class="lede">Ground truth stays on the red dashed link. Every ping, traceroute, BGP read, and config dump from the frozen trajectory lands on a node or a path. Communicate and isolated exist on six of the thirteen cases.</p>
+      <p class="lede">Ground truth stays on the red dashed link. Ping echoes back or bursts on loss, with the RTT or loss chip on the path. Traceroute counts hops. BGP sessions pulse or break Idle. Config sheets land on the box. The chip in the corner is the operation result.</p>
 
       <div class="chips" id="scenario-chips"></div>
       <div class="toolstrip" id="toolstrip"></div>
@@ -82,7 +93,14 @@
             <h3>XS Clos · BGP ECMP · SONiC-VS</h3>
             <div id="now-tool" class="now-tool">idle</div>
           </div>
-          <svg id="fabric-svg" viewBox="0 0 800 430" role="img" aria-label="Clos topology with live tool probes"></svg>
+          <div class="topo-stage">
+            <svg id="fabric-svg" viewBox="0 0 800 430" role="img" aria-label="Clos topology with live tool probes"></svg>
+            <div id="op-toast" class="op-toast" hidden>
+              <div class="op-k" id="op-k">idle</div>
+              <div class="op-v" id="op-v"></div>
+            </div>
+          </div>
+          <p class="fx-legend">ping echo / drop · traceroute hops · BGP Idle · config sheet · RIB · diagnosis stamp</p>
         </div>
         <div class="side">
           <div class="card">
@@ -93,6 +111,31 @@
           <div class="card" style="padding:0;flex:1">
             <div class="log" id="log" aria-live="polite"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cloud" class="panel">
+      <p class="kicker">From the frozen XS traces · no dumps</p>
+      <h2>What the agent named, and which tools it reached for</h2>
+      <p class="lede">Left: every <code>netops</code> call in the 13 scored XS trajectories (A2 harness plus A3 communicate / isolated where they exist). Right: fault types the agent wrote into a diagnosis — including the packet_loss miss and the high_latency 0.5.</p>
+      <div class="cloud-grid">
+        <div class="card">
+          <h3>Tools called</h3>
+          <svg id="cloud-tools" viewBox="0 0 560 400" role="img" aria-label="Word cloud of netops tools"></svg>
+          <p class="help" id="cloud-tools-cap"></p>
+        </div>
+        <div class="card">
+          <h3>Faults the agent diagnosed</h3>
+          <svg id="cloud-faults" viewBox="0 0 560 400" role="img" aria-label="Word cloud of diagnosed fault types"></svg>
+          <p class="help" id="cloud-faults-cap"></p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Counts behind the clouds</h3>
+        <div class="layout">
+          <div id="cloud-tool-list"></div>
+          <div id="cloud-fault-list"></div>
         </div>
       </div>
     </section>
