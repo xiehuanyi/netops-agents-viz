@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetOps Agents · progress</title>
+  <meta name="description" content="Live Clos diagnosis progress for Advanced Topics in Computer Networks. A1–A3 on NetOpsBench.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="goldbar"></div>
+  <header class="top">
+    <div class="brand">
+      <p class="brand-kicker">KAUST · Advanced Topics in Computer Networks</p>
+      <h1>NetOps agents on a live Clos fabric</h1>
+      <p>Huanyi Xie · 212753 · Muse Spark 1.3 Contributor · NetOpsBench</p>
+    </div>
+    <nav aria-label="Sections">
+      <a href="#progress" data-panel="progress" class="active">Progress</a>
+      <a href="#fabric" data-panel="fabric">Fabric</a>
+      <a href="#noc" data-panel="noc">NOC replay</a>
+      <a href="#scores" data-panel="scores">Scores</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="progress" class="panel active">
+      <p class="kicker">Where the work stands · 14 Nov 2026</p>
+      <h2>Three homeworks on one live alarm</h2>
+      <p class="lede">The course thread is one diagnosis job: a SONiC Clos is healthy or broken, and the agent must return a verdict, a fault type, and a location. The model stays Muse Spark 1.3 Contributor. What changes is the harness, then the number of desks.</p>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="n">0.972</div>
+          <div class="l">A2 mean score · 53 live cases vs OpenCode 0.821</div>
+        </div>
+        <div class="stat gold">
+          <div class="n">−41%</div>
+          <div class="l">USD vs OpenCode · $0.102 vs $0.172, same SKU</div>
+        </div>
+        <div class="stat navy">
+          <div class="n">0.833</div>
+          <div class="l">A3 talking desks · same as silent desks, below the single agent 1.00</div>
+        </div>
+        <div class="stat red">
+          <div class="n">1 miss</div>
+          <div class="l">packet_loss · desks abstain; single agent names leaf2 Ethernet4</div>
+        </div>
+      </div>
+
+      <div class="timeline" id="timeline"></div>
+      <p class="note"><strong>The demo on the next two tabs is the XS Clos</strong> — 2 spines, 2 leaves, 2 clients — with real traces from the Assignment 3 communicate run. Click a fault on the fabric, then play the NOC replay. Keys <kbd>1</kbd>–<kbd>4</kbd> jump tabs. <kbd>Space</kbd> plays the current replay.</p>
+    </section>
+
+    <section id="fabric" class="panel">
+      <p class="kicker">Live evaluation fabric · NetOpsBench XS</p>
+      <h2>Pick a fault. The Clos lights up.</h2>
+      <p class="lede">Pingmesh names leaves, not Ethernet ports. The incident is a time window: a later live ping can be clean after the inject has ended. That is why packet_loss is hard.</p>
+      <div class="chips" id="scenario-chips"></div>
+      <div class="layout">
+        <div class="card">
+          <h3>XS Clos · BGP ECMP · SONiC-VS</h3>
+          <svg id="fabric-svg" viewBox="0 0 800 420" role="img" aria-label="Clos topology"></svg>
+        </div>
+        <div class="card">
+          <h3>Ground truth vs agents</h3>
+          <dl class="diag" id="diag"></dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="noc" class="panel">
+      <p class="kicker">Assignment 3 · coordinator topology</p>
+      <h2>Four desks, one ticket, no peer chat</h2>
+      <p class="lede">Desks do not message each other. The commander dispatches, hands off the previous report, may ask one clarify, then writes diagnosis.json. Isolated mode uses the same desks with no handoff. The baseline is the Assignment 2 single agent.</p>
+      <div class="desks" id="desks"></div>
+      <div class="controls">
+        <label>Replay
+          <select id="replay-select">
+            <option value="link_down">link_down · score 1.0</option>
+            <option value="packet_loss">packet_loss · score 0.0</option>
+          </select>
+        </label>
+        <button id="play" type="button">Play</button>
+        <button id="step" class="ghost" type="button">Step</button>
+        <button id="reset" class="ghost" type="button">Reset</button>
+        <span id="replay-status" class="help" style="margin:0"></span>
+      </div>
+      <div class="layout">
+        <div class="card" style="padding:0">
+          <div class="log" id="log" aria-live="polite"></div>
+        </div>
+        <div class="card">
+          <h3 id="replay-title">Replay</h3>
+          <p id="replay-sub" class="lede"></p>
+          <p id="replay-out"></p>
+          <p class="help">Gold rows are commander messages. The packet-loss miss is the commander seeing disagreement and writing inconclusive instead of pinging next hop 10.2.2.1.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="scores" class="panel">
+      <p class="kicker">Official NetOpsBench evaluator</p>
+      <h2>Numbers that are already frozen</h2>
+      <p class="lede">A2 is 53 scored cases (XS+Small+Medium; device_down inject-fail dropped). A3 is six paired XS cases on one live fabric. Cost is cache-aware Muse pricing.</p>
+      <div class="legend">
+        <span><i class="sw" style="background:#009aa6"></i>Single / harness</span>
+        <span><i class="sw" style="background:#34518f"></i>OpenCode / isolated</span>
+        <span><i class="sw" style="background:#bf8616"></i>Communicate</span>
+      </div>
+      <div class="layout">
+        <div class="card">
+          <h3>Assignment 2 · 53 cases</h3>
+          <div class="bars" id="a2-bars"></div>
+        </div>
+        <div class="card">
+          <h3>Assignment 3 · six XS cases</h3>
+          <div class="bars" id="a3-bars"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>A3 per case · communicate vs isolated vs single agent</h3>
+        <table id="a3-table"></table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>Huanyi Xie · KAUST 212753 · source traces from NetOpsBench communicate runs, 30 Oct 2026. Model held fixed.</div>
+    <div><a href="https://github.com/xiehuanyi/netops-agents">private lab repo</a> · demo is this public page</div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
