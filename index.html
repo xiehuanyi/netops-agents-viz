@@ -20,8 +20,7 @@
     </div>
     <nav aria-label="Sections">
       <a href="#progress" data-panel="progress" class="active">Progress</a>
-      <a href="#fabric" data-panel="fabric">Fabric</a>
-      <a href="#noc" data-panel="noc">NOC replay</a>
+      <a href="#replay" data-panel="replay">Replay</a>
       <a href="#scores" data-panel="scores">Scores</a>
     </nav>
   </header>
@@ -52,52 +51,48 @@
       </div>
 
       <div class="timeline" id="timeline"></div>
-      <p class="note"><strong>The demo on the next two tabs is the XS Clos</strong> — 2 spines, 2 leaves, 2 clients — with real traces from the Assignment 3 communicate run. Click a fault on the fabric, then play the NOC replay. Keys <kbd>1</kbd>–<kbd>4</kbd> jump tabs. <kbd>Space</kbd> plays the current replay.</p>
+      <p class="note"><strong>Replay tab:</strong> all 13 scored XS cases on the live Clos. Pick a fault, pick A2 harness or an A3 desk run, press Play. Each <code>netops</code> call lights the device or walks a ping along the links. Keys <kbd>1</kbd>–<kbd>3</kbd> jump tabs. <kbd>Space</kbd> plays.</p>
     </section>
 
-    <section id="fabric" class="panel">
-      <p class="kicker">Live evaluation fabric · NetOpsBench XS</p>
-      <h2>Pick a fault. The Clos lights up.</h2>
-      <p class="lede">Pingmesh names leaves, not Ethernet ports. The incident is a time window: a later live ping can be clean after the inject has ended. That is why packet_loss is hard.</p>
+    <section id="replay" class="panel">
+      <p class="kicker">Live evaluation fabric · 13 scored XS traces</p>
+      <h2>The Clos is the stage. Tools are the motion.</h2>
+      <p class="lede">Ground truth stays on the red dashed link. Every ping, traceroute, BGP read, and config dump from the frozen trajectory lands on a node or a path. Communicate and isolated exist on six of the thirteen cases.</p>
+
       <div class="chips" id="scenario-chips"></div>
-      <div class="layout">
-        <div class="card">
-          <h3>XS Clos · BGP ECMP · SONiC-VS</h3>
-          <svg id="fabric-svg" viewBox="0 0 800 420" role="img" aria-label="Clos topology"></svg>
-        </div>
-        <div class="card">
-          <h3>Ground truth vs agents</h3>
-          <dl class="diag" id="diag"></dl>
-        </div>
-      </div>
-    </section>
+      <div class="toolstrip" id="toolstrip"></div>
 
-    <section id="noc" class="panel">
-      <p class="kicker">Assignment 3 · coordinator topology</p>
-      <h2>Four desks, one ticket, no peer chat</h2>
-      <p class="lede">Desks do not message each other. The commander dispatches, hands off the previous report, may ask one clarify, then writes diagnosis.json. Isolated mode uses the same desks with no handoff. The baseline is the Assignment 2 single agent.</p>
-      <div class="desks" id="desks"></div>
-      <div class="controls">
-        <label>Replay
-          <select id="replay-select">
-            <option value="link_down">link_down · score 1.0</option>
-            <option value="packet_loss">packet_loss · score 0.0</option>
-          </select>
-        </label>
+      <div class="controls replay-bar">
+        <div class="modes" id="agent-modes" role="tablist" aria-label="Agent run">
+          <button type="button" data-mode="a2" class="active">A2 harness</button>
+          <button type="button" data-mode="a3c">A3 communicate</button>
+          <button type="button" data-mode="a3i">A3 isolated</button>
+        </div>
         <button id="play" type="button">Play</button>
         <button id="step" class="ghost" type="button">Step</button>
         <button id="reset" class="ghost" type="button">Reset</button>
         <span id="replay-status" class="help" style="margin:0"></span>
       </div>
-      <div class="layout">
-        <div class="card" style="padding:0">
-          <div class="log" id="log" aria-live="polite"></div>
+
+      <div class="desks" id="desks" hidden></div>
+
+      <div class="layout replay-grid">
+        <div class="card topo-card">
+          <div class="topo-head">
+            <h3>XS Clos · BGP ECMP · SONiC-VS</h3>
+            <div id="now-tool" class="now-tool">idle</div>
+          </div>
+          <svg id="fabric-svg" viewBox="0 0 800 430" role="img" aria-label="Clos topology with live tool probes"></svg>
         </div>
-        <div class="card">
-          <h3 id="replay-title">Replay</h3>
-          <p id="replay-sub" class="lede"></p>
-          <p id="replay-out"></p>
-          <p class="help">Gold rows are commander messages. The packet-loss miss is the commander seeing disagreement and writing inconclusive instead of pinging next hop 10.2.2.1.</p>
+        <div class="side">
+          <div class="card">
+            <h3 id="replay-title">Case</h3>
+            <p id="replay-sub" class="lede" style="margin-bottom:10px"></p>
+            <dl class="diag" id="diag"></dl>
+          </div>
+          <div class="card" style="padding:0;flex:1">
+            <div class="log" id="log" aria-live="polite"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -129,11 +124,12 @@
   </main>
 
   <footer>
-    <div>Huanyi Xie · KAUST 212753 · source traces from NetOpsBench communicate runs, 30 Oct 2026. Model held fixed.</div>
+    <div>Huanyi Xie · KAUST 212753 · source traces from NetOpsBench A2 XS-loc (10 Oct) and A3 communicate/isolated (30 Oct 2026). Model held fixed.</div>
     <div><a href="https://github.com/xiehuanyi/netops-agents">private lab repo</a> · demo is this public page</div>
   </footer>
 
   <script src="data.js"></script>
+  <script src="traces.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

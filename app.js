@@ -1,13 +1,38 @@
 (function () {
   const D = window.NETOPS;
+  const T = (window.NETOPS_TRACES && window.NETOPS_TRACES.cases) || [];
   const $ = (id) => document.getElementById(id);
-  let fabricDrawn = false;
-  let currentScenario = "link_down";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const NS = "http://www.w3.org/2000/svg";
+
+  const CASES = T;
+  const pos = Object.fromEntries(D.fabric.devices.map((d) => [d.id, d]));
+
+  let caseId = "link_down";
+  let mode = "a2";
+  let stepIdx = -1;
+  let timer = null;
+  let heat = {};
+  let used = new Set();
+
+  function caseOf() {
+    return CASES.find((c) => c.id === caseId) || CASES[0];
+  }
+  function runOf() {
+    const c = caseOf();
+    const r = c && c[mode];
+    if (r) return r;
+    return c.a2;
+  }
+  function steps() {
+    return (runOf() && runOf().steps) || [];
+  }
 
   function setPanel(id) {
+    if (id === "fabric" || id === "noc") id = "replay";
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === id));
     document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("active", a.dataset.panel === id));
-    if (id === "fabric") drawFabric();
+    if (id === "replay") drawFabric();
     history.replaceState(null, "", "#" + id);
   }
 
@@ -28,8 +53,19 @@
     </article>
   `).join("");
 
-  /* ── fabric ─────────────────────────────────────────────── */
-  const pos = Object.fromEntries(D.fabric.devices.map((d) => [d.id, d]));
+  function fmtScore(n) {
+    if (n === 1 || n === 1.0) return "1.0";
+    if (n === 0 || n === 0.0) return "0.0";
+    if (n == null) return "—";
+    return String(n);
+  }
+
+  function toolFamily(tool) {
+    if (["ping_test", "traceroute", "get_pingmesh_hotspots", "get_pingmesh_summary"].includes(tool)) return "data";
+    if (/bgp|route|rib/i.test(tool)) return "ctrl";
+    if (/config|acl|interface|logs|metrics/.test(tool)) return "cfg";
+    return "misc";
+  }
 
   function nodeBox(d) {
     const w = d.role === "client" ? 108 : 118;
@@ -37,95 +73,204 @@
     return { x: d.x - w / 2, y: d.y - h / 2, w, h };
   }
 
-  function drawFabric() {
-    fabricDrawn = true;
-    const svg = $("fabric-svg");
-    const sc = D.scenarios.find((s) => s.id === currentScenario);
-    const hotLinks = new Set(sc.highlight);
-    const hotDev = new Set(sc.devices);
+  function el(name, attrs, text) {
+    const n = document.createElementNS(NS, name);
+    Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v));
+    if (text != null) n.textContent = text;
+    return n;
+  }
 
-    const links = D.fabric.links.map((l) => {
+  function drawFabric() {
+    const svg = $("fabric-svg");
+    svg.innerHTML = "";
+    const c = caseOf();
+    const gtLink = c && c.gt && c.gt.link;
+
+    svg.appendChild(el("text", { x: 24, y: 28, fill: "#5b6470", "font-size": "12", "font-family": "IBM Plex Sans" }, "spines"));
+    svg.appendChild(el("text", { x: 24, y: 210, fill: "#5b6470", "font-size": "12", "font-family": "IBM Plex Sans" }, "leaves"));
+    svg.appendChild(el("text", { x: 24, y: 348, fill: "#5b6470", "font-size": "12", "font-family": "IBM Plex Sans" }, "clients"));
+
+    const gLinks = el("g", { id: "g-links" });
+    D.fabric.links.forEach((l) => {
       const a = pos[l.a], b = pos[l.b];
-      const cls = hotLinks.has(l.id) ? "link hot" : "link ok";
+      const p = el("path", {
+        id: "p-" + l.id,
+        class: "link" + (gtLink === l.id ? " gt" : ""),
+        d: `M${a.x} ${a.y} L${b.x} ${b.y}`,
+      });
+      gLinks.appendChild(p);
       const leafEnd = pos[l.a].role === "leaf" ? a : b;
       const other = leafEnd === a ? b : a;
       const leafIf = pos[l.a].role === "leaf" ? l.aIf : l.bIf;
       const lx = leafEnd.x * 0.62 + other.x * 0.38;
       const ly = leafEnd.y * 0.62 + other.y * 0.38;
-      return `<path class="${cls}" id="p-${l.id}" d="M${a.x} ${a.y} L${b.x} ${b.y}" />
-        <text class="if-label" x="${lx + 10}" y="${ly - 4}">${leafIf}</text>`;
-    }).join("");
+      const lab = el("text", {
+        id: "if-" + l.id,
+        class: "if-label" + (gtLink === l.id ? " hot" : ""),
+        x: lx + 10,
+        y: ly - 4,
+      }, leafIf);
+      gLinks.appendChild(lab);
+    });
+    svg.appendChild(gLinks);
+    svg.appendChild(el("g", { id: "g-pkts" }));
 
-    const nodes = D.fabric.devices.map((d) => {
+    const gNodes = el("g", { id: "g-nodes" });
+    D.fabric.devices.forEach((d) => {
       const b = nodeBox(d);
-      const hot = hotDev.has(d.id) ? " hot" : "";
+      const g = el("g", { id: "n-" + d.id, class: "node " + d.role });
+      g.appendChild(el("circle", { class: "scan", cx: d.x, cy: d.y, r: 8 }));
+      g.appendChild(el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 3 }));
+      g.appendChild(el("text", { x: d.x, y: d.y - 2, "text-anchor": "middle" }, d.id));
       const sub = d.asn ? `AS ${d.asn}` : (d.ip || d.mgmt);
-      return `<g class="node ${d.role}${hot}">
-        <rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="3" />
-        <text x="${d.x}" y="${d.y - 2}" text-anchor="middle">${d.id}</text>
-        <text x="${d.x}" y="${d.y + 12}" text-anchor="middle" style="font-size:10px;font-weight:500;opacity:.85">${sub}</text>
-      </g>`;
+      g.appendChild(el("text", {
+        x: d.x, y: d.y + 12, "text-anchor": "middle",
+        style: "font-size:10px;font-weight:500;opacity:.85",
+      }, sub));
+      g.appendChild(el("text", {
+        id: "h-" + d.id, class: "heat",
+        x: b.x + b.w - 6, y: b.y - 4, "text-anchor": "end",
+      }, ""));
+      gNodes.appendChild(g);
+    });
+    svg.appendChild(gNodes);
+    paintStep();
+  }
+
+  function lerpPath(pts, t) {
+    if (pts.length === 1) return pts[0];
+    const segs = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dx = pts[i + 1].x - pts[i].x;
+      const dy = pts[i + 1].y - pts[i].y;
+      const len = Math.hypot(dx, dy) || 1;
+      segs.push({ a: pts[i], b: pts[i + 1], len });
+      total += len;
+    }
+    let dist = t * total;
+    for (const s of segs) {
+      if (dist <= s.len) {
+        const u = dist / s.len;
+        return { x: s.a.x + (s.b.x - s.a.x) * u, y: s.a.y + (s.b.y - s.a.y) * u };
+      }
+      dist -= s.len;
+    }
+    return pts[pts.length - 1];
+  }
+
+  function spawnPackets(paths, lossy) {
+    const layer = document.getElementById("g-pkts");
+    if (!layer) return;
+    layer.innerHTML = "";
+    (paths || []).forEach((path) => {
+      const pts = path.map((id) => pos[id]).filter(Boolean);
+      if (pts.length < 2) return;
+      const rest = lerpPath(pts, 0.62);
+      const marker = el("circle", {
+        class: "pkt" + (lossy ? " loss" : ""),
+        r: 6, cx: rest.x, cy: rest.y,
+      });
+      layer.appendChild(marker);
+      if (reduce) return;
+      const c = el("circle", { class: "pkt" + (lossy ? " loss" : ""), r: 5, cx: pts[0].x, cy: pts[0].y });
+      layer.appendChild(c);
+      const start = performance.now();
+      const ms = 820;
+      function tick(now) {
+        const t = Math.min(1, (now - start) / ms);
+        const p = lerpPath(pts, t);
+        c.setAttribute("cx", p.x);
+        c.setAttribute("cy", p.y);
+        if (t < 1) requestAnimationFrame(tick);
+        else c.remove();
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function clearProbe() {
+    document.querySelectorAll(".node").forEach((n) => {
+      n.classList.remove("probe", "data", "ctrl", "cfg", "misc", "hit", "miss");
+    });
+    document.querySelectorAll(".link").forEach((l) => {
+      l.classList.remove("probe", "data", "ctrl", "cfg", "loss", "okflow");
+    });
+  }
+
+  function markGt() {
+    const c = caseOf();
+    if (!c) return;
+    if (c.gt.device) {
+      const n = document.getElementById("n-" + c.gt.device);
+      if (n) n.classList.add("gt");
+    }
+  }
+
+  function paintHeat() {
+    D.fabric.devices.forEach((d) => {
+      const t = document.getElementById("h-" + d.id);
+      if (!t) return;
+      const n = heat[d.id] || 0;
+      t.textContent = n ? String(n) : "";
+    });
+  }
+
+  function applyVisual(step) {
+    clearProbe();
+    markGt();
+    if (!step) {
+      paintHeat();
+      return;
+    }
+    const fam = toolFamily(step.tool);
+    (step.devices || []).forEach((id) => {
+      heat[id] = (heat[id] || 0) + 1;
+      const n = document.getElementById("n-" + id);
+      if (n) n.classList.add("probe", fam);
+    });
+    const lossy = typeof step.loss === "number" && step.loss > 0;
+    (step.links || []).forEach((id) => {
+      const p = document.getElementById("p-" + id);
+      if (!p) return;
+      p.classList.add("probe", fam);
+      if (lossy) p.classList.add("loss");
+      else if (fam === "data" && step.tool !== "ping_test") p.classList.add("okflow");
+    });
+    if (step.kind === "diagnosis") {
+      const c = caseOf();
+      const named = (step.devices || [])[0];
+      (step.devices || []).forEach((id) => {
+        const n = document.getElementById("n-" + id);
+        if (!n) return;
+        const ok = c.gt.device ? id === c.gt.device : /healthy|none/i.test(step.hint);
+        n.classList.add(ok ? "hit" : "miss");
+      });
+      if (c.gt.device && named && named !== c.gt.device) {
+        const g = document.getElementById("n-" + c.gt.device);
+        if (g) g.classList.add("gt");
+      }
+    }
+    paintHeat();
+    if (step.paths && step.paths.length) spawnPackets(step.paths, lossy);
+  }
+
+  function uniqueTools(list) {
+    const seen = [];
+    list.forEach((s) => {
+      if (s.kind !== "tool") return;
+      if (!seen.includes(s.tool)) seen.push(s.tool);
+    });
+    return seen;
+  }
+
+  function paintStrip() {
+    const tools = uniqueTools(steps());
+    $("toolstrip").innerHTML = tools.map((t) => {
+      const on = used.has(t) ? " on " + toolFamily(t) : "";
+      const now = (stepIdx >= 0 && steps()[stepIdx] && steps()[stepIdx].tool === t) ? " now" : "";
+      return `<span class="tpill${on}${now}" data-tool="${t}">${t.replace(/^get_/, "")}</span>`;
     }).join("");
-
-    svg.innerHTML = `
-      <text x="24" y="28" fill="#5b6470" font-size="12" font-family="IBM Plex Sans">spines</text>
-      <text x="24" y="210" fill="#5b6470" font-size="12" font-family="IBM Plex Sans">leaves</text>
-      <text x="24" y="348" fill="#5b6470" font-size="12" font-family="IBM Plex Sans">clients</text>
-      ${links}${nodes}
-    `;
-
-    $("diag").innerHTML = `
-      <dt>Ground truth</dt><dd>${sc.gt}</dd>
-      <dt>A2 harness / OpenCode</dt>
-      <dd>${fmtScore(sc.a2.ours)} / ${fmtScore(sc.a2.oc)}</dd>
-      <dt>A3 single / isolated / communicate</dt>
-      <dd>${fmtScore(sc.a3.single)} / ${fmtScore(sc.a3.iso)} / ${fmtScore(sc.a3.comm)}</dd>
-      <dt>Communicate diagnosis</dt>
-      <dd><span class="badge ${sc.a3.comm === 1 ? "ok" : "bad"}">${sc.a3.diagnosis}</span></dd>
-      <dt>What to notice</dt><dd>${sc.blurb}</dd>
-    `;
-  }
-
-  function fmtScore(n) {
-    if (n === 1) return "1.0";
-    if (n === 0) return "0.0";
-    return String(n);
-  }
-
-  $("scenario-chips").innerHTML = D.scenarios.map((s) =>
-    `<button class="chip ${s.id === "packet_loss" ? "bad" : ""}" type="button" data-id="${s.id}">${s.name}</button>`
-  ).join("");
-
-  $("scenario-chips").addEventListener("click", (e) => {
-    const btn = e.target.closest(".chip");
-    if (!btn) return;
-    currentScenario = btn.dataset.id;
-    [...$("scenario-chips").children].forEach((c) => c.classList.toggle("active", c === btn));
-    drawFabric();
-  });
-
-  /* ── desks + replay ─────────────────────────────────────── */
-  $("desks").innerHTML = D.desks.map((d) => `
-    <article class="desk" data-id="${d.id}">
-      <h3>${d.name}</h3>
-      <p>${d.duty}</p>
-      <div class="tools">${d.tools}</div>
-    </article>
-  `).join("");
-
-  let replayId = "link_down";
-  let stepIdx = -1;
-  let timer = null;
-
-  function replay() {
-    return D.replays[replayId];
-  }
-
-  function paintReplayHead() {
-    const r = replay();
-    $("replay-title").textContent = r.title;
-    $("replay-sub").textContent = r.subtitle;
-    $("replay-out").innerHTML = `<span class="badge ${r.ok ? "ok" : "bad"}">${r.outcome}</span>`;
   }
 
   function highlightDesk(id) {
@@ -134,76 +279,161 @@
     });
   }
 
+  function paintHead() {
+    const c = caseOf();
+    const r = runOf();
+    const modeLabel = { a2: "A2 harness (single agent)", a3c: "A3 communicate", a3i: "A3 isolated" }[mode];
+    $("replay-title").textContent = `${c.name} · ${c.gt.type}`;
+    $("replay-sub").textContent = `${modeLabel} · ${r.tools} netops calls · ${r.n} events`;
+    const gt = c.gt.device
+      ? `${c.gt.type} · ${c.gt.device}${c.gt.iface ? " " + c.gt.iface : ""}`
+      : (c.gt.type || "network_healthy");
+    const ok = r.score === 1 || r.score === 1.0;
+    $("diag").innerHTML = `
+      <dt>Ground truth</dt><dd>${gt}</dd>
+      <dt>This run</dt>
+      <dd><span class="badge ${ok ? "ok" : "bad"}">${fmtScore(r.score)} · ${r.diagnosis}</span></dd>
+      <dt>A2 harness / OpenCode</dt>
+      <dd>${fmtScore(c.a2.score)} / ${fmtScore(c.oc.score)} · OC ${c.oc.diagnosis}</dd>
+      <dt>A3 communicate / isolated</dt>
+      <dd>${c.a3c ? fmtScore(c.a3c.score) : "—"} / ${c.a3i ? fmtScore(c.a3i.score) : "—"}</dd>
+    `;
+  }
+
   function renderLog() {
-    const r = replay();
-    const rows = r.steps.slice(0, stepIdx + 1).map((s, i) => {
+    const list = steps();
+    const rows = list.slice(0, stepIdx + 1).map((s, i) => {
       const active = i === stepIdx ? " active" : "";
-      const kind = ["dispatch", "handoff", "clarify", "diagnosis"].includes(s.type) ? " cmd" : "";
-      return `<div class="row${active}${kind}">
-        <div class="meta"><span class="type">${s.type}</span> · ${s.t} · ${s.from} → ${s.to}</div>
-        <div>${s.text}</div>
+      const kind = ["dispatch", "handoff", "clarify", "diagnosis"].includes(s.kind) ? " cmd" : "";
+      const fail = s.kind === "diagnosis" && (runOf().score === 0) ? " fail" : "";
+      const who = s.desk === "single" ? "harness" : s.desk;
+      return `<div class="row${active}${kind}${fail}">
+        <div class="meta"><span class="type">${s.kind}</span> · ${s.t || "—"} · ${who}${s.tool && s.kind === "tool" ? " · " + s.tool : ""}</div>
+        <div>${s.hint || ""}</div>
       </div>`;
     }).join("");
-    $("log").innerHTML = rows || `<div class="row"><div class="meta">idle</div><div>Press Play. ${r.steps.length} messages from the communicate run.</div></div>`;
+    $("log").innerHTML = rows || `<div class="row"><div class="meta">idle</div><div>Press Play. ${list.length} events from the frozen trajectory light the Clos.</div></div>`;
     $("log").scrollTop = $("log").scrollHeight;
-    $("replay-status").textContent = stepIdx < 0 ? "ready" : `${stepIdx + 1} / ${r.steps.length}`;
-    if (stepIdx >= 0) highlightDesk(deskOf(r.steps[stepIdx]));
-    else highlightDesk(null);
   }
 
-  function deskOf(step) {
-    const names = ["commander", "data-plane", "control-plane", "config"];
-    if (names.includes(step.to)) return step.to;
-    if (names.includes(step.from)) return step.from;
-    return "commander";
-  }
-
-  function stepOnce() {
-    const r = replay();
-    if (stepIdx >= r.steps.length - 1) {
-      stopPlay();
-      return;
+  function paintStep() {
+    const list = steps();
+    const step = stepIdx >= 0 ? list[stepIdx] : null;
+    $("replay-status").textContent = stepIdx < 0 ? `ready · ${list.length}` : `${stepIdx + 1} / ${list.length}`;
+    const now = $("now-tool");
+    if (step) {
+      now.textContent = step.kind === "tool"
+        ? step.hint
+        : (step.kind + (step.desk && step.desk !== "single" ? " · " + step.desk : ""));
+      now.className = "now-tool hot" + ((step.kind === "diagnosis" && runOf().score === 0) ? " miss" : "");
+      highlightDesk(step.desk === "single" ? null : step.desk);
+      if (step.kind === "tool") used.add(step.tool);
+    } else {
+      now.textContent = "idle";
+      now.className = "now-tool";
+      highlightDesk(null);
     }
-    stepIdx += 1;
+    applyVisual(step);
+    paintStrip();
     renderLog();
   }
 
   function stopPlay() {
-    if (timer) clearInterval(timer);
+    if (timer) clearTimeout(timer);
     timer = null;
     $("play").textContent = "Play";
   }
 
+  function delayFor(step) {
+    if (!step) return 700;
+    if (step.tool === "ping_test" || step.tool === "traceroute") return 980;
+    if (step.kind === "diagnosis") return 1400;
+    if (step.kind === "read" || step.tool === "get_topology") return 520;
+    return 640;
+  }
+
+  function stepOnce() {
+    const list = steps();
+    if (stepIdx >= list.length - 1) {
+      stopPlay();
+      return false;
+    }
+    stepIdx += 1;
+    paintStep();
+    return stepIdx < list.length - 1;
+  }
+
   function play() {
     if (timer) { stopPlay(); return; }
-    if (stepIdx >= replay().steps.length - 1) stepIdx = -1;
+    if (stepIdx >= steps().length - 1) resetReplay(false);
     $("play").textContent = "Pause";
-    stepOnce();
-    timer = setInterval(stepOnce, 1100);
+    const tick = () => {
+      const more = stepOnce();
+      if (more) timer = setTimeout(tick, delayFor(steps()[stepIdx]));
+      else stopPlay();
+    };
+    tick();
   }
 
-  function resetReplay() {
+  function resetReplay(repaintHead) {
     stopPlay();
     stepIdx = -1;
-    renderLog();
+    heat = {};
+    used = new Set();
+    const layer = document.getElementById("g-pkts");
+    if (layer) layer.innerHTML = "";
+    if (repaintHead !== false) paintHead();
+    paintStep();
   }
 
-  $("replay-select").addEventListener("change", (e) => {
-    replayId = e.target.value;
-    currentScenario = replayId;
-    paintReplayHead();
+  function syncModes() {
+    const c = caseOf();
+    document.querySelectorAll("#agent-modes button").forEach((b) => {
+      const m = b.getAttribute("data-mode");
+      b.disabled = m !== "a2" && !c[m];
+      b.classList.toggle("active", m === mode);
+    });
+    const showDesks = mode !== "a2";
+    $("desks").hidden = !showDesks;
+  }
+
+  $("desks").innerHTML = D.desks.map((d) => `
+    <article class="desk" data-id="${d.id}">
+      <h3>${d.name}</h3>
+      <p>${d.duty}</p>
+      <div class="tools">${d.tools}</div>
+    </article>
+  `).join("");
+
+  $("scenario-chips").innerHTML = CASES.map((s) => {
+    const miss = (s.a2.score !== 1) || (s.a3c && s.a3c.score !== 1);
+    return `<button class="chip ${miss ? "bad" : ""}" type="button" data-id="${s.id}">${s.name}</button>`;
+  }).join("");
+
+  $("scenario-chips").addEventListener("click", (e) => {
+    const btn = e.target.closest(".chip");
+    if (!btn) return;
+    caseId = btn.dataset.id;
+    [...$("scenario-chips").children].forEach((ch) => ch.classList.toggle("active", ch === btn));
+    const c = caseOf();
+    if (!c[mode]) mode = "a2";
+    syncModes();
     resetReplay();
-    if (fabricDrawn) {
-      [...$("scenario-chips").children].forEach((c) => c.classList.toggle("active", c.dataset.id === replayId));
-      drawFabric();
-    }
+    drawFabric();
   });
+
+  $("agent-modes").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled) return;
+    mode = b.getAttribute("data-mode");
+    syncModes();
+    resetReplay();
+    drawFabric();
+  });
+
   $("play").addEventListener("click", play);
   $("step").addEventListener("click", () => { stopPlay(); stepOnce(); });
-  $("reset").addEventListener("click", resetReplay);
-
-  paintReplayHead();
-  renderLog();
+  $("reset").addEventListener("click", () => resetReplay());
 
   /* ── scores ─────────────────────────────────────────────── */
   function bar(label, value, max, cls) {
@@ -239,20 +469,40 @@
         <td>${fmtScore(r.single)}</td><td>${fmtScore(r.iso)}</td><td>${fmtScore(r.comm)}</td>
       </tr>`).join("")}</tbody>`;
 
-  /* ── keys ───────────────────────────────────────────────── */
   document.addEventListener("keydown", (e) => {
-    const map = { "1": "progress", "2": "fabric", "3": "noc", "4": "scores" };
+    const map = { "1": "progress", "2": "replay", "3": "scores" };
     if (map[e.key]) setPanel(map[e.key]);
     if (e.code === "Space" && !["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) {
       e.preventDefault();
-      if (!$("noc").classList.contains("active")) setPanel("noc");
+      if (!$("replay").classList.contains("active")) setPanel("replay");
       play();
+    }
+    if (e.key === "ArrowRight" && $("replay").classList.contains("active")) {
+      e.preventDefault();
+      stopPlay();
+      stepOnce();
+    }
+    if (e.key === "ArrowLeft" && $("replay").classList.contains("active")) {
+      e.preventDefault();
+      stopPlay();
+      if (stepIdx >= 0) {
+        stepIdx -= 1;
+        heat = {};
+        used = new Set();
+        steps().slice(0, stepIdx + 1).forEach((s) => {
+          (s.devices || []).forEach((id) => { heat[id] = (heat[id] || 0) + 1; });
+          if (s.kind === "tool") used.add(s.tool);
+        });
+        paintStep();
+      }
     }
   });
 
-  const firstChip = $("scenario-chips").querySelector('[data-id="link_down"]');
+  const firstChip = $("scenario-chips").querySelector('[data-id="link_down"]') || $("scenario-chips").firstElementChild;
   if (firstChip) firstChip.classList.add("active");
+  syncModes();
+  paintHead();
 
   const start = (location.hash || "#progress").replace("#", "");
-  setPanel(["progress", "fabric", "noc", "scores"].includes(start) ? start : "progress");
+  setPanel(["progress", "replay", "scores", "fabric", "noc"].includes(start) ? start : "progress");
 })();

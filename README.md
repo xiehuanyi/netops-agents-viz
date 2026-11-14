@@ -7,11 +7,10 @@ Live site: **https://xiehuanyi.github.io/netops-agents-viz/**
 The page is a static visualization of work already measured on [NetOpsBench](https://github.com/NetX-lab/NetOpsBench):
 
 1. **Progress** — A1 loop, A2 harness vs OpenCode, A3 four-desk NOC
-2. **Fabric** — XS Clos (2 spines, 2 leaves, 2 clients); click a fault
-3. **NOC replay** — real communicate traces for `link_down` (score 1.0) and `packet_loss` (score 0.0)
-4. **Scores** — frozen Assignment 2 / Assignment 3 numbers
+2. **Replay** — all 13 scored XS cases on the Clos. Each frozen `netops` call lights a device or walks a ping. A2 harness on every case; A3 communicate / isolated on the six paired cases.
+3. **Scores** — frozen Assignment 2 / Assignment 3 numbers
 
-Presenter keys: `1`–`4` switch tabs, `Space` plays the replay.
+Presenter keys: `1`–`3` switch tabs, `Space` plays, arrows step. `#fabric` and `#noc` still open Replay.
 
 No API keys and no full tool dumps. Lab code stays in the private repo `xiehuanyi/netops-agents`.
 
