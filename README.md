@@ -1,4 +1,4 @@
-# NetOps agents — progress demo
+# NetMaster — progress demo
 
 Public GitHub Pages companion for the KAUST course *Advanced Topics in Computer Networks* (Shihada).
 
